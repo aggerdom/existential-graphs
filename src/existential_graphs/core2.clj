@@ -25,9 +25,10 @@
 (defn insert [G subG path]
   "Insert node as a child of a specific path into graph.
    Empty path places node as child of the root."
-  (if (empty? path) (conj G subG)
-      (update G (first path)
-              #(insert % subG (rest path)))))
+  (cond (empty? path) (conj G subG)
+        (nil? (first path)) (conj G subG)
+        :else (update G (first path)
+                      #(insert % subG (rest path)))))
 
 (defn replace-node [G f path]
   "Replace node at a specific position with a new node obtained by
@@ -56,7 +57,7 @@
    :docstring "Any subgraph may be inserted at an odd numbered depth"}
   (insert G subG path))
 
-;; Specify path of child to erase (path points to child)
+;; Specify path of child to erase (path points to node to erase)
 (defn erasure [G path]
   {:pre [(odd? (path-depth path))] ;; odd? because it's *in* even depth
    :post []
@@ -68,25 +69,32 @@
 ;; (erasure [:SA [:A] [:cut [:B]]] [2 1]) ;; ERROR
 
 (defn double-cut [G path]
+  ;; If path points to a node, then:
+  ;;  - double cut will be placed around that node
+  ;;  - That node will be placed as a child under two cuts in its present pos
+  ;; If path ends in nil, then:
+  ;;  - two cuts will be placed as a child of (butlast node)
+  ;;  - A double cut will be created without any children
   {:pre []
    :post []
    :docstring (str "A pair of cuts w nothing between them may be drawn"
                    "around any subgraph (including empty graph)")}
   (cond (= path []) (throw "Not understood")
-        (and (= 1 (count path))
-             (nil? (first path))) (conj G [:cut [:cut]])
-        (= 1 (count path)) false
+        ;; CASE: Empty double-cut
+        (and (= 1 (count path)) (nil? (first path)))
+        (conj G [:cut [:cut]])
+        ;; CASE: Cut around node
+        (= 1 (count path))
+        (update G (first path) (fn [cur-node] [:cut [:cut cur-node]]))
+        ;; CASE: We're not drilled down yet
         :else (update G (first path) #(double-cut % (rest path)))))
 
 ;; Examples
-;; (double-cut [:SA] []) ;; => [:SA [:cut [:cut]]]
 (double-cut [:SA] [nil]) ;; => [:SA [:cut [:cut]]]
-;; (double-cut [:SA [:A]] []) ;; => [:SA [:A] [:cut [:cut]]]
 (double-cut [:SA [:A]] [nil]) ;; => [:SA [:A] [:cut [:cut]]]
 (double-cut [:SA [:A]] [1]) ;; => [:SA [:cut [:cut [:A]]]]
-(double-cut [:SA [:A [:B [:C]]]] [1 1])
-(double-cut [:SA [:A [:B [:C]]]] [1]) ;; WORKS
-(double-cut [:SA [:A [:B [:C]]]] [1 1]) ;; TODO: BROKEN!!!
+(double-cut [:SA [:A]] [1 nil]) ;; => [:SA [:A [:cut [:cut]]]]
+(double-cut [:SA [:A [:B [:C]]]] [1 1]) ;; => [:SA [:A [:cut [:cut [:B [:C]]]]]]
 
 
 (defn double-cut-erasure [G path]
@@ -107,32 +115,24 @@
   ;; => [:SA [:A] [:B]]
   )
 
-(fn iteration [G src-path dest-path]
+(defn iteration [G src-path dest-path]
   {:pre [(have-common-parent? G src-path dest-path)]
    :post []
    :docstring (str "Any subgraph P depending on node n may be copied"
-                   "into any node depending on n.")})
+                   "into any node depending on n.")}
+  (insert G (get-in G src-path) dest-path))
+
+(iteration [:SA [:A]] [1] [1 nil])
 
 (defn deiteration [G src-path]
   {:pre [(exists-ancestral-copy? src-path)]
    :post []
    :docstring (str "Any subgraph P in node n may be erased if there is"
                    "a copy of it in a node ancestral to n."
-                   "(A node on which n depends which n depends)")})
+                   "(A node on which n depends which n depends)")}
+  (erase G src-path))
 
 (insert [:SA] [:cut [:cut]] [])
 (insertion [:SA] [:cut [:cut]] []) ;; Double cut must use it's own rule
 (insert [:SA [:cut]] [:cut] [1])
 (insert [:SA] [:A] [])
-
-(get-in [:SA] [1 2])
-
-(remove-from-v)
-(into (subvec [0 1 2] 0 0)
-      (subvec [0 1 2] 1))
-
-(get-in [] [nil])
-(subvec [0] 2)
-
-(update [0 1 2] 1 #(do [%] 3))
-

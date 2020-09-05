@@ -10,7 +10,33 @@
          (= (count node) 2) ;; No other children but second cut
          (= (first (second node)) :cut))))
 
-(defn exists-ancestral-copy? [G path] true) ;; TODO: Implement
+(butlast [1]) ;; => nil
+(butlast [1 2]) ;; => (1)
+(butlast (butlast [1 2]))
+(butlast (butlast [1]))
+
+(into [] (butlast (butlast [1])))
+
+(defn exists-ancestral-copy? [G path]
+  return "NOT YET IMPLEMENTED")
+
+(filter #{:B} [:B])
+(set [:B])
+
+(exists-ancestral-copy? [:A [:B]] [1]) ;; false
+(exists-ancestral-copy? [:A [:B] [:B]] [1]) ;; True
+(exists-ancestral-copy? [:A [:B] [:C]] [1]) ;; false
+(exists-ancestral-copy? [:A [:B] [:cut [:B]]] [2 1])
+(let [G [:A [:B] [:B]]
+      path [1]]
+  (->> (iterate butlast path)
+       (take-while #(< 0 (count %)))
+       (rest)
+       (take 10)))
+
+(deiteration [:SA [:A] [:cut [:A]]]
+             [2 1])
+
 (defn have-common-parent? [G src-path dest-path] true) ;; TODO: Implement
 
 (defn insert [G subG path]
@@ -31,11 +57,10 @@
   (into (subvec v 0 ix)
         (subvec v (inc ix))))
 
-
 (defn erase [G path]
   {:pre [(< 0 (count path))]}
   (if (= (count path) 1) (drop-vec-position G (first path))
-      (update G (first path) #(erase G (rest path)))))
+      (update G (first path) #(erase % (rest path)))))
 
 
 ;; Rules ==================================================================
@@ -44,6 +69,8 @@
 ;; A B cut     -- 4 (Insertion "in odd"=add B as child of odd number of cuts) [1 nil]
 ;;      C      -- 5 (Erasure "in even" = we can erase C) [1 1 1] (<- path is odd len)
 ;; Specify path to place child (path points to parent)
+
+
 (defn insertion [G subG path]
   {:pre [(odd? (path-depth path))]
    :post []
@@ -52,12 +79,13 @@
 
 
 ;; Specify path of child to erase (path points to node to erase)
+
+
 (defn erasure [G path]
   {:pre [(even? (dec (path-depth path)))] ;; We can erase at any even depth (root is 2)
    :post []
    :docstring "Any subgraph in an even depth may be erased"}
   (erase G path))
-
 
 (defn double-cut [G path]
   ;; If path points to a node, then:
@@ -101,12 +129,14 @@
   (insert G (get-in G src-path) dest-path))
 
 (defn deiteration [G src-path]
-  {:pre [(exists-ancestral-copy? src-path)]
+  {:pre [(exists-ancestral-copy? G src-path)]
    :post []
    :docstring (str "Any subgraph P in node n may be erased if there is"
                    "a copy of it in a node ancestral to n."
                    "(A node on which n depends which n depends)")}
   (erase G src-path))
+
+(deiteration [:SA [:A]] [1])
 
 
 

@@ -2,10 +2,9 @@
   (:require [existential-graphs.core :as sut]
             [clojure.test :refer :all]))
 
-(count (take-while #(not (nil? %)) [nil]))
-
 ;; Depth starts at 2
 ;; Each cut it passes through adds one
+;; A path of [] denotes :SA the sheet of assertion (minimal unit)
 (deftest path-depth-test
   (is (= (sut/path-depth [nil]) 2))
   (is (= (sut/path-depth [1 nil]) 3)))
@@ -21,8 +20,13 @@
   (is (= (sut/is-double-cut? [:SA [:cut [:cut [:A]]]] [1 2 3]) false))) ;; nonexistent path
 
 (deftest exists-ancestral-copy?-test
-  ;; (is false "WRITE TEST")
-  )
+  (is (= (sut/exists-ancestral-copy? [:A [:B]] [1]) false))
+  (is (= (sut/exists-ancestral-copy? [:A [:B] [:B]] [1])  true))
+  (is (= (sut/exists-ancestral-copy? [:A [:B] [:C]] [1])  false))
+  (is (= (sut/exists-ancestral-copy? [:A [:B] [:cut [:B]]] [2 1]) true))
+  (is (= (sut/exists-ancestral-copy? [:A [:cut [:C]] [:cut [:C]]] [2 1]) false))
+  (is (= (sut/exists-ancestral-copy? [:A [:cut [:C]] [:cut [:C]]] [2]) true)))
+
 (deftest have-common-parent?-test
   ;; (is false "WRITE TEST")
   )
@@ -36,8 +40,7 @@
   (is (= (sut/replace-node [:A [:B]]  (fn [x] (vector :C x))   [1])
          [:A [:C [:B]]]))
   (is (= (sut/replace-node [:SA [:A]] (fn [x] [:cut [:cut x]]) [1])
-       [:SA [:cut [:cut [:A]]]]))
-  )
+         [:SA [:cut [:cut [:A]]]])))
 
 (deftest drop-vec-position-test
   (is (= (sut/drop-vec-position [1 2 3] 0) [2 3]))
@@ -76,11 +79,16 @@
 (deftest double-cut-erasure-test
   (is (= (sut/double-cut-erasure [:SA [:cut [:cut [:A] [:B]]]] [1])
          [:SA [:A] [:B]])))
+
 (deftest iteration-test
-  (is (= (sut/iteration [:SA [:A]] [1] [1 nil])
-         [:SA [:A [:A]]])))
+  (is (thrown? AssertionError
+               (sut/iteration [:SA [:A]] [1] [1 nil])))
+  (is (thrown? AssertionError)))
 
 (deftest deiteration-test
-  (is
-   (= (sut/double-cut-erasure [:SA [:cut [:cut [:A] [:B]]]] [1])
-      [:SA [:A] [:B]])))
+  (is (thrown? AssertionError
+               (sut/deiteration [:SA [:A]] [1])))
+  (is (= (sut/deiteration [:SA [:A] [:cut [:A]]] [2 1])
+         [:SA [:A] [:cut]])))
+
+

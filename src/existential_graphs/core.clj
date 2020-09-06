@@ -1,5 +1,4 @@
-(ns existential-graphs.core
-  (:require [spectacles.lenses :as lens]))
+(ns existential-graphs.core)
 
 ;; Helpers
 (defn path-depth [path] (+ 2 (count (take-while #(not (nil? %)) path))))
@@ -10,23 +9,40 @@
          (= (count node) 2) ;; No other children but second cut
          (= (first (second node)) :cut))))
 
-(butlast [1]) ;; => nil
-(butlast [1 2]) ;; => (1)
-(butlast (butlast [1 2]))
-(butlast (butlast [1]))
-
-(into [] (butlast (butlast [1])))
+(defn ancestor-paths [path]
+  "Get ancestor paths from a path.
+    EXAMPLE:
+    (ancestor-paths []) ;; => nil
+    (ancestor-paths [1]) ;; => '([])
+    (ancestor-paths [1 2]) ;; => '((1) [])"
+  (if (empty? path) nil
+      (->> path
+           (#(iterate butlast %))
+           (take-while #(not (nil? %)))
+           (drop 1)
+           (into '())
+           (cons '[])
+           (reverse))))
 
 (defn exists-ancestral-copy? [G path]
-  return "NOT YET IMPLEMENTED")
+  "Determine whether a node in tree `G` at `path`
+   has a copy within any ancestral node. (A node on which n depends)"
+  (let [node (get-in G path)
+        [parent-path & ancestor-paths] (ancestor-paths path)
+        parent (get-in G parent-path)
+        ancestors (map #(get-in G %) ancestor-paths)
+        fnum-equal (fn [coll] (count (filter #(= node %) coll)))]
+    (cond (< 1 (fnum-equal parent)) true ;; parent has copy
+          (some #(<= 1 (fnum-equal %)) ancestors) true
+          :else false)))
 
-(filter #{:B} [:B])
-(set [:B])
+(exists-ancestral-copy? [:A [:B]] [1]) ;; => false
+(exists-ancestral-copy? [:A [:B] [:B]] [1]) ;; =>  true
+(exists-ancestral-copy? [:A [:B] [:C]] [1]) ;; =>  false
+(exists-ancestral-copy? [:A [:B] [:cut [:B]]] [2 1]) ;; => true
+(exists-ancestral-copy? [:A [:cut [:C]] [:cut [:C]]] [2 1]) ;; => false
+(exists-ancestral-copy? [:A [:cut [:C]] [:cut [:C]]] [2]) ;; => true
 
-(exists-ancestral-copy? [:A [:B]] [1]) ;; false
-(exists-ancestral-copy? [:A [:B] [:B]] [1]) ;; True
-(exists-ancestral-copy? [:A [:B] [:C]] [1]) ;; false
-(exists-ancestral-copy? [:A [:B] [:cut [:B]]] [2 1])
 (let [G [:A [:B] [:B]]
       path [1]]
   (->> (iterate butlast path)
@@ -34,10 +50,6 @@
        (rest)
        (take 10)))
 
-(deiteration [:SA [:A] [:cut [:A]]]
-             [2 1])
-
-(defn have-common-parent? [G src-path dest-path] true) ;; TODO: Implement
 
 (defn insert [G subG path]
   "Insert node as a child of a specific path into graph.
@@ -121,22 +133,87 @@
         G3 (erase G2 path)]
     G3))
 
+
+;; ==========---------------------------------------------------------------------------
+(defn is-leaf? [node] (= (count node) 1))
+(defn cuts-crossed [G path] (->> (ancestor-paths path)
+                                 (map #(get-in G %))
+                                 (map first)
+                                 (filter #(= :cut %))
+                                 (count)))
+(defn is-start-of-path? [a b] (and (<= (count a) (count b))
+                                   (every? #(apply = %) (map vector a b))))
+(is-start-of-path? [1 2] [1]) ;; -> false
+(is-start-of-path? [1] [1 2]) ;; -> true
+(defn is-root? [G path] (= path []))
+(defn have-common-parent? [G src-path dest-path]
+  (let [parent-path (first (ancestor-paths src-path))]
+    (or (is-start-of-path? src-path dest-path) ;; Node within itself
+        (is-start-of-path? parent-path dest-path))))
+
+(have-common-parent? [:SA [:A]] [1] [1 nil]) ;; [:SA [:A]] -> [:SA [:A [:A]]] (true)
+(have-common-parent? [:SA [:A]] [1] [nil]) ;; [:SA [:A]] -> [:SA [:A] [:A]] (true)
+(have-common-parent? [:SA [:A]] [] [nil]) ;; [:SA [:A]] -> [:SA [:A] [:A]] (not meaningful really, but outlaw seperately)
+(have-common-parent? [:SA [:cut [:A]]] [1 1] [1 nil]) ;; -> [:SA [:cut [:A] [:A]]]
+(have-common-parent? [:SA [:cut [:A] [:cut [:B]]]]
+                     [1 2 1] [1]) ;; -> false
+
+
+
+;; ==========---------------------------------------------------------------------------
+
+;; http://users.clas.ufl.edu/jzeman/graphicallogic/introduction.htm
+;; LEGAL:
+;;   [:SA [:A]] -> [:SA [:A] [:A]]
+;;   [:SA [:A [:A]]] <- Not semantically meaningful (only allowing atoms and cuts)
+;;   [:SA [:cut [:A]]]
+
+
+(cuts-crossed [:SA
+               [:A]
+               [:cut [:A]]
+               [:cut [:cut [:B]]]] [2 1])
+
+(have-common-parent? [:SA [:A]]
+                     [1]
+                     [1 nil]) ;; Insert a node as a child of itself
+
+
+
+;; A node may be copies if the copy is enclosed by at least all the same cuts
+(defn valid-child-loc? [G path]
+  (some?
+   (and
+    ;; Child path must and with nil (for place as child)
+    (nil? (last path))
+    ;; Propositions or cuts are children of cuts or the sheet of assertion
+    (#{:SA :cut} (first (get-in G (first (ancestor-paths path))))))))
+
 (defn iteration [G src-path dest-path]
-  {:pre [(have-common-parent? G src-path dest-path)]
+  {:pre [(not (is-root? G src-path))
+         (have-common-parent? G src-path dest-path)]
    :post []
    :docstring (str "Any subgraph P depending on node n may be copied"
                    "into any node depending on n.")}
   (insert G (get-in G src-path) dest-path))
+
+
+(valid-child-loc? [:SA [:A]] [1 nil]) ;; => false (must be child of :cut or :SA)
+(valid-child-loc? [:SA [:A] [:cut [:B]]] [2 nil]) ;; true
+
+(iteration [:SA [:A]] [1] [1 nil]) ;; Insert a node as a child of itself
+(iteration [:SA [:A]] [1] [nil]) ;; Insert a node as a child of it's parent
+(iteration [:SA [:A] [:cut [:B]]] [2 1] [nil]) ;; Throws, can't cross a cut
+(iteration [:SA [:A] [:cut [:B]]] [2 1] [nil]) ;; Throws, must be descendent of cut
+(iteration [:SA [:A] [:cut [:B]]] [2 1] [2 2]) ;; Throws, must be descendent of cut
+
 
 (defn deiteration [G src-path]
   {:pre [(exists-ancestral-copy? G src-path)]
    :post []
    :docstring (str "Any subgraph P in node n may be erased if there is"
                    "a copy of it in a node ancestral to n."
-                   "(A node on which n depends which n depends)")}
+                   "(A node on which n depends)")}
   (erase G src-path))
-
-(deiteration [:SA [:A]] [1])
-
 
 

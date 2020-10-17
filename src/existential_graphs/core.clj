@@ -9,6 +9,9 @@
          (= (count node) 2) ;; No other children but second cut
          (= (first (second node)) :cut))))
 
+(defn is-sa-or-cut? [G path]
+  (some? (#{:SA :cut} (first (G path)))))
+
 (defn ancestor-paths [path]
   "Get ancestor paths from a path.
     EXAMPLE:

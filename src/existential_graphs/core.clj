@@ -183,32 +183,25 @@
 
 
 
-;; A node may be copies if the copy is enclosed by at least all the same cuts
+;; A node may be copied if the copy is enclosed by at least all the same cuts
+
+
 (defn valid-child-loc? [G path]
-  (some?
+  (boolean
    (and
-    ;; Child path must and with nil (for place as child)
+    ;; Child path must end with nil (for place as child)
     (nil? (last path))
     ;; Propositions or cuts are children of cuts or the sheet of assertion
     (#{:SA :cut} (first (get-in G (first (ancestor-paths path))))))))
 
 (defn iteration [G src-path dest-path]
-  {:pre [(not (is-root? G src-path))
-         (have-common-parent? G src-path dest-path)]
+  {:pre [(not (is-root? G src-path)) ;; Protect root of our tree (:SA is itself a node)
+         (have-common-parent? G src-path dest-path) ;; It's not
+         (valid-child-loc? G dest-path)]
    :post []
    :docstring (str "Any subgraph P depending on node n may be copied"
                    "into any node depending on n.")}
   (insert G (get-in G src-path) dest-path))
-
-
-(valid-child-loc? [:SA [:A]] [1 nil]) ;; => false (must be child of :cut or :SA)
-(valid-child-loc? [:SA [:A] [:cut [:B]]] [2 nil]) ;; true
-
-(iteration [:SA [:A]] [1] [1 nil]) ;; Insert a node as a child of itself
-(iteration [:SA [:A]] [1] [nil]) ;; Insert a node as a child of it's parent
-(iteration [:SA [:A] [:cut [:B]]] [2 1] [nil]) ;; Throws, can't cross a cut
-(iteration [:SA [:A] [:cut [:B]]] [2 1] [nil]) ;; Throws, must be descendent of cut
-(iteration [:SA [:A] [:cut [:B]]] [2 1] [2 2]) ;; Throws, must be descendent of cut
 
 
 (defn deiteration [G src-path]

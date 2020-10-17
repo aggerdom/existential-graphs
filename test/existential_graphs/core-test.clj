@@ -80,10 +80,16 @@
   (is (= (sut/double-cut-erasure [:SA [:cut [:cut [:A] [:B]]]] [1])
          [:SA [:A] [:B]])))
 
+(deftest valid-child-loc?-test
+  (is (= (sut/valid-child-loc? [:SA [:cut]] [1 nil])) true)
+  (is (= (sut/valid-child-loc? [:SA [:A]] [1 nil]) false))
+  (is (= (sut/valid-child-loc? [:SA [:A]] [1]) false))
+  (is (= (sut/valid-child-loc? [:SA [:cut [:cut]]] [1 1 nil]) true))
+  (is (= (sut/valid-child-loc? [:SA [:cut [:cut [:A]]]] [1 1 1 nil]) false)))
+
 (deftest iteration-test
-  (is (thrown? AssertionError
-               (sut/iteration [:SA [:A]] [1] [1 nil])))
-  (is (thrown? AssertionError)))
+  (testing "Good Locations")
+  (testing "Bad Locations (Cross Cuts)"))
 
 (deftest deiteration-test
   (is (thrown? AssertionError

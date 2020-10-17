@@ -81,15 +81,31 @@
          [:SA [:A] [:B]])))
 
 (deftest valid-child-loc?-test
-  (is (= (sut/valid-child-loc? [:SA [:cut]] [1 nil])) true)
+  (is (= (sut/valid-child-loc? [:SA [:cut]] [1 nil]) true))
   (is (= (sut/valid-child-loc? [:SA [:A]] [1 nil]) false))
   (is (= (sut/valid-child-loc? [:SA [:A]] [1]) false))
   (is (= (sut/valid-child-loc? [:SA [:cut [:cut]]] [1 1 nil]) true))
   (is (= (sut/valid-child-loc? [:SA [:cut [:cut [:A]]]] [1 1 1 nil]) false)))
 
 (deftest iteration-test
-  (testing "Good Locations")
-  (testing "Bad Locations (Cross Cuts)"))
+  (testing "Good Locations"
+    ;; Copy into same cut
+    (is (= (sut/iteration [:SA [:cut [:A]]] [1 1] [1 nil])
+           [:SA [:cut [:A] [:A]]]))
+    (is (= (sut/iteration [:SA [:A] [:B]] [1] [nil])
+           [:SA [:A] [:B] [:A]]))
+    ;; Copy into sibling cut
+    (is (= (sut/iteration [:SA [:cut [:A] [:cut]]] [1 1] [1 2 nil])
+           [:SA [:cut [:A] [:cut [:A]]]]))
+    (is (= (sut/iteration [:SA [:cut [:A] [:cut [:B]]]] [1 1] [1 2 nil])
+           [:SA [:cut [:A] [:cut [:B] [:A]]]])))
+  (testing "Bad Locations (Cross Cuts)"
+    ;; Crossing out of current cut
+    (is (thrown? AssertionError
+                 (sut/iteration [:SA [:cut [:A] [:cut]]] [1 1] [2 nil])))
+    ;; Crossing out of current level
+    (is (thrown? AssertionError
+                 (sut/iteration [:SA [:cut [:A] [:cut]]] [1 1] [nil])))))
 
 (deftest deiteration-test
   (is (thrown? AssertionError

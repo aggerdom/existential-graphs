@@ -105,7 +105,18 @@
                  (sut/iteration [:SA [:cut [:A] [:cut]]] [1 1] [2 nil])))
     ;; Crossing out of current level
     (is (thrown? AssertionError
-                 (sut/iteration [:SA [:cut [:A] [:cut]]] [1 1] [nil])))))
+                 (sut/iteration [:SA [:cut [:A] [:cut]]] [1 1] [nil]))))
+  (testing "Bad Arguments"
+    ;; Invalid child argument (must end in nil)
+    (is (thrown? AssertionError
+                 (sut/iteration [:SA [:cut [:A] [:cut]]] [1 1] [1 2])))
+    ;; Invalid child location (Node rather than cut)
+    (is (thrown? AssertionError
+                 (sut/iteration [:SA [:cut [:A] [:B]]] [1 1] [1 2 nil])))
+    (is (thrown? AssertionError
+                 (sut/iteration [:SA [:cut [:A]]]
+                                [1 1]
+                                [1 6 nil])))))
 
 (deftest deiteration-test
   (is (thrown? AssertionError
